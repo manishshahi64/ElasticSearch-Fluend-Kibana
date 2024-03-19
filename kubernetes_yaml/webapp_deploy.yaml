@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp
+  labels:
+    app: webapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      pod: webapp
+  template:
+    metadata:
+      labels:
+        pod: webapp
+        # hostname: webapp
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: node
+                operator: In
+                values:
+                - kmaster1
+      containers:
+      - name: webapp
+        image: webapp
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c", "python3 manage.py runserver 0.0.0.0:8000"]
+        ports:
+        - containerPort: 8000
+        env:
+        - name: POSTGRES_HOST
+          value: postgres
+        volumeMounts:
+        - name: webapp-pv
+          mountPath: /myproject_attendence
+      volumes:
+      - name: webapp-pv
+        persistentVolumeClaim:
+          claimName: webapp-pvc
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: webapp-pv
+  labels:
+    type: local1
+spec:
+  capacity:
+    storage: 3Gi
+  accessModes:
+  - ReadWriteMany
+  hostPath:
+    path: /home/manish/myproject/myproject_recipe
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: node
+          operator: In
+          values:
+          - kmaster1
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: webapp-pvc
+  labels:
+    type: local1
+spec:
+  storageClassName: ""
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 3Gi
+  volumeName: webapp-pv
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp
+spec:
+  selector:
+    pod: webapp
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+    nodePort: 30001
+  type: NodePort
+
